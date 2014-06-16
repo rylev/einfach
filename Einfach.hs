@@ -40,8 +40,7 @@ module MyInterpreter where
 
   assignment :: Parser Statement
   assignment = do i <- identifier
-                  _ <- char ':'
-                  spaces
+                  spaces >> string ":=" >> spaces
                   e <- expr
                   return $ Assignment i e
 
@@ -53,14 +52,17 @@ module MyInterpreter where
   compoundStatement :: Parser Statement
   compoundStatement = do s1 <- simpleStatement
                          _ <- spaces >> char ';'
+                         spaces
                          s2 <-simpleStatement
                          return $ CompoundStatement s1 s2
 
   simpleStatement :: Parser Statement
-  simpleStatement = assignment <|> printStatement
+  simpleStatement = try assignment <|> printStatement
 
   statement :: Parser Statement
-  statement = simpleStatement <|> compoundStatement
+  statement = do s <- spaces >> (try compoundStatement <|> simpleStatement)
+                 spaces
+                 return s
 
   identExpr :: Parser Expr
   identExpr = do s <- identifier
@@ -87,15 +89,12 @@ module MyInterpreter where
                 return $ EseqExpr s e
 
   expr :: Parser Expr
-  expr = opExpr <|> identExpr <|> numExpr <|> eseqExpr
+  expr = eseqExpr <|> try opExpr <|> identExpr <|> numExpr
 
   main :: IO ()
-  main = case parse expr "example" inputText of
+  main = case parse (many1 statement)  "example" inputText of
               Left  err -> print err
               Right res -> putStrLn $ "I parsed: '" ++ show res ++ "'"
 
   inputText :: String
-  inputText = "(a: 5+3, a + 10)"
-
-  realTest :: String
-  realTest = "a := 5 + 3; b := (print(a, a - 1), 10 * a); print(b)"
+  inputText = "a := 5 + 3; b := (print(a), 10 * a); print(b)"
