@@ -34,12 +34,13 @@ module MyInterpreter where
   assignment = do i <- many1 alphaNum
                   _ <- char ':'
                   spaces
-                  _ <- expr
-                  return $ Assignment i (IdentExpr "Dude")
+                  e <- identExpr
+                  return $ Assignment i e
 
-  expr :: Parser Expr
-  expr = do _ <- many1 alphaNum
-            return $ IdentExpr "Dude"
+  identExpr :: Parser Expr
+  identExpr = do s1 <- letter
+                 s2 <- many1 alphaNum
+                 return $ IdentExpr $ s1 : s2
 
   main :: IO ()
   main = case parse assignment "example" inputText of
@@ -48,3 +49,6 @@ module MyInterpreter where
 
   inputText :: String
   inputText = "a: lol"
+
+  realTest :: String
+  realTest = "a := 5 + 3; b := (print(a, a - 1), 10 * a); print(b)"
