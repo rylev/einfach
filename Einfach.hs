@@ -45,8 +45,22 @@ module MyInterpreter where
                   e <- expr
                   return $ Assignment i e
 
+  printStatement :: Parser Statement
+  printStatement = do e <- string "print" >> char '(' >> expr
+                      _ <- char ')'
+                      return $ PrintStatement [e]
+
+  compoundStatement :: Parser Statement
+  compoundStatement = do s1 <- simpleStatement
+                         _ <- spaces >> char ';'
+                         s2 <-simpleStatement
+                         return $ CompoundStatement s1 s2
+
+  simpleStatement :: Parser Statement
+  simpleStatement = assignment <|> printStatement
+
   statement :: Parser Statement
-  statement = assignment
+  statement = simpleStatement <|> compoundStatement
 
   identExpr :: Parser Expr
   identExpr = do s <- identifier
