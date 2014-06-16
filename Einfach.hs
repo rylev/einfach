@@ -24,17 +24,20 @@ module MyInterpreter where
   minus :: Parser BinOp
   minus = char '-' >> return Minus
 
-  multiplication :: Parser BinOp
-  multiplication = char '*' >> return Multiplication
+  times :: Parser BinOp
+  times = char '*' >> return Multiplication
 
-  division :: Parser BinOp
-  division = char '/' >> return Division
+  divide :: Parser BinOp
+  divide = char '/' >> return Division
+
+  operator :: Parser BinOp
+  operator = plus <|> minus <|> times <|> divide
 
   assignment :: Parser Statement
   assignment = do i <- many1 alphaNum
                   _ <- char ':'
                   spaces
-                  e <- identExpr
+                  e <- expr
                   return $ Assignment i e
 
   identExpr :: Parser Expr
@@ -42,13 +45,37 @@ module MyInterpreter where
                  s2 <- many1 alphaNum
                  return $ IdentExpr $ s1 : s2
 
+  numExpr :: Parser Expr
+  numExpr = do ds <- many1 digit
+               return $ NumExpr ds
+
+  opExpr :: Parser Expr
+  opExpr = do left <- numExpr <|> identExpr
+              op <- operator
+              right <- numExpr <|> identExpr
+              return $ OpExpr left op right
+
+  eseqExpr :: Parser Expr
+  eseqExpr = do char '(' >> spaces
+                s <- statement
+                spaces >> char ',' >> spaces
+                e <- expr
+                _ <- spaces >> char ')'
+                return $ EseqExpr s e
+
+  statement :: Parser Statement
+  statement = undefined
+
+  expr :: Parser Expr
+  expr = identExpr <|> opExpr <|> numExpr
+
   main :: IO ()
   main = case parse assignment "example" inputText of
               Left  err -> print err
               Right res -> putStrLn $ "I parsed: '" ++ show res ++ "'"
 
   inputText :: String
-  inputText = "a: lol"
+  inputText = "a: 5+3"
 
   realTest :: String
   realTest = "a := 5 + 3; b := (print(a, a - 1), 10 * a); print(b)"
