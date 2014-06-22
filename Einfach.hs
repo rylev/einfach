@@ -2,6 +2,36 @@ module MyInterpreter where
 
   import Text.Parsec
   import Text.Parsec.String
+  import qualified Text.Parsec.Token as P
+  import Data.Functor.Identity
+  import Control.Monad
+
+  lexer :: P.GenTokenParser String u Identity
+  lexer = P.makeTokenParser einfachDef
+
+  einfachDef :: P.LanguageDef s
+  einfachDef = P.LanguageDef {
+    P.commentStart = "#--",
+    P.commentEnd = "--#",
+    P.commentLine = "#",
+    P.nestedComments = False,
+    P.identStart = letter <|> char '_',
+    P.identLetter = alphaNum <|> char '_',
+    P.opStart = oneOf ":!#$%&*+./<=>?@\\^|-~",
+    P.opLetter = oneOf ":!#$%&*+./<=>?@\\^|-~",
+    P.reservedNames = [],
+    P.reservedOpNames = [],
+    P.caseSensitive = True
+  }
+
+  whiteSpace :: Parser ()
+  whiteSpace = P.whiteSpace lexer
+
+  mainParser :: Parser [Statement]
+  mainParser = do whiteSpace
+                  ss <- statements
+                  eof
+                  return ss
 
   type Ident = String
 
@@ -30,17 +60,17 @@ module MyInterpreter where
   divide :: Parser BinOp
   divide = char '/' >> return Division
 
-  operator :: Parser BinOp
-  operator = plus <|> minus <|> times <|> divide
+  oper :: Parser BinOp
+  oper = plus <|> minus <|> times <|> divide
 
-  identifier :: Parser String
-  identifier = do s1 <- letter
-                  s2 <- many alphaNum
-                  return $ s1 : s2
+  ident :: Parser String
+  ident = do s1 <- letter
+             s2 <- many alphaNum
+             return $ s1 : s2
 
   assignment :: Parser Statement
-  assignment = do i <- identifier
-                  spaces >> string ":=" >> spaces
+  assignment = do i <- ident
+                  spaces >> string "=" >> spaces
                   e <- expr
                   return $ Assignment i e
 
@@ -49,23 +79,29 @@ module MyInterpreter where
                       _ <- char ')'
                       return $ PrintStatement [e]
 
-  compoundStatement :: Parser Statement
-  compoundStatement = do s1 <- simpleStatement
-                         _ <- spaces >> char ';'
-                         spaces
-                         s2 <-simpleStatement
-                         return $ CompoundStatement s1 s2
-
-  simpleStatement :: Parser Statement
-  simpleStatement = try assignment <|> printStatement
-
   statement :: Parser Statement
-  statement = do s <- spaces >> (try compoundStatement <|> simpleStatement)
-                 spaces
-                 return s
+  statement = try assignment <|> printStatement
+
+  statements :: Parser [Statement]
+  statements = sepBy1 statement statementSep
+               where statementSep = do reglarSpaces
+                                       eol <|> void (string ";")
+                                       reglarSpaces
+
+
+  reglarSpaces :: Parser ()
+  reglarSpaces = void . many $ oneOf " \t\f\v"
+
+  eol :: Parser ()
+  eol = void eolParser
+        where eolParser = try (string "\n\r")
+                          <|> try (string "\r\n")
+                          <|> string "\n"
+                          <|> string "\r"
+                          <?> "eol"
 
   identExpr :: Parser Expr
-  identExpr = do s <- identifier
+  identExpr = do s <- ident
                  return $ IdentExpr s
 
   numExpr :: Parser Expr
@@ -75,7 +111,7 @@ module MyInterpreter where
   opExpr :: Parser Expr
   opExpr = do left <- numExpr <|> identExpr
               spaces
-              op <- operator
+              op <- oper
               spaces
               right <- numExpr <|> identExpr
               return $ OpExpr left op right
@@ -92,9 +128,9 @@ module MyInterpreter where
   expr = eseqExpr <|> try opExpr <|> identExpr <|> numExpr
 
   main :: IO ()
-  main = case parse (many1 statement)  "example" inputText of
+  main = case parse mainParser  "example" inputText of
               Left  err -> print err
               Right res -> putStrLn $ "I parsed: '" ++ show res ++ "'"
 
   inputText :: String
-  inputText = "a := 5 + 3; b := (print(a), 10 * a); print(b)"
+  inputText = "a = 5 + 3    \n b = (print(a), 10 * a); print(b)"
